@@ -1,0 +1,30 @@
+# Sri Lanka electricity tariff — low voltage (<=42kVA), non-domestic categories
+# Source: PUCSL, "Annex 2 – Approved Tariff Table", effective 11 May 2026
+# https://www.pucsl.gov.lk/wp-content/uploads/2026/05/Annex-2-Approved-Tariff-Tabel_May-2026.pdf
+# Retrieved: 2026-09-29
+
+effective_from: "2026-05-11"
+connection_type: "low_voltage_le_42kva"
+billing_structure: "volume_differentiated"   # whole bill at one rate, chosen by total kWh band
+
+categories:
+  general_purpose:
+    label: "General Purpose"
+    threshold_kwh: 180
+    bands:
+      low:   { max_kwh: 180, energy_charge: 27.00, fixed_charge: 500.00 }
+      high:  { max_kwh: null, energy_charge: 36.00, fixed_charge: 1600.00 }
+
+  industrial:
+    label: "Industrial"
+    threshold_kwh: 300
+    bands:
+      low:   { max_kwh: 300, energy_charge: 9.00, fixed_charge: 300.00 }
+      high:  { max_kwh: null, energy_charge: 18.00, fixed_charge: 800.00 }
+
+  hotel:
+    label: "Hotel"
+    threshold_kwh: 300
+    bands:
+      low:   { max_kwh: 300, energy_charge: 9.00, fixed_charge: 300.00 }
+      high:  { max_kwh: null, energy_charge: 18.00, fixed_charge: 800.00 }
