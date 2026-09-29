@@ -1,5 +1,6 @@
 """FastAPI application: endpoints for businesses and bills."""
 from datetime import date
+from app.recommendations.rules import generate_suggestions
 from app.tariff_engine.carbon import calculate_carbon_kg
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
@@ -105,4 +106,38 @@ def get_bill_carbon(bill_id: int, db: Session = Depends(get_db)):
         "bill_id": bill.id,
         "kwh": bill.kwh,
         "carbon_kg": calculate_carbon_kg(bill.kwh),
+    }
+
+@app.get("/bills/{bill_id}/savings")
+def get_bill_savings(bill_id: int, db: Session = Depends(get_db)):
+    bill = db.get(Bill, bill_id)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
+    business = db.get(Business, bill.business_id)
+    tariff = load_tariff_for_date(bill.bill_date)
+
+    recent_bills = (
+        db.query(Bill)
+        .filter(Bill.business_id == bill.business_id, Bill.bill_date <= bill.bill_date)
+        .order_by(Bill.bill_date)
+        .all()
+    )
+    recent_kwh = [b.kwh for b in recent_bills]
+
+    suggestions = generate_suggestions(
+        kwh=bill.kwh,
+        category=business.category,
+        tariff=tariff,
+        recent_kwh=recent_kwh,
+        mismatch=bill.mismatch,
+        calculated_amount=bill.calculated_amount or 0,
+    )
+
+    return {
+        "bill_id": bill.id,
+        "suggestions": [
+            {"title": s.title, "detail": s.detail, "priority": s.priority}
+            for s in suggestions
+        ],
     }

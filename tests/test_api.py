@@ -89,3 +89,16 @@ def test_get_bill_carbon(client):
     data = response.json()
     assert data["kwh"] == 200
     assert data["carbon_kg"] == pytest.approx(200 * 0.4173, rel=1e-3)
+
+def test_get_bill_savings(client):
+    business = client.post("/businesses", json={"name": "Trending Shop", "category": "general_purpose"}).json()
+    for kwh in [100, 150, 190]:
+        client.post("/bills", json={"business_id": business["id"], "bill_date": "2026-06-01", "kwh": kwh})
+
+    bills = client.get(f"/bills?business_id={business['id']}").json()
+    last_bill_id = bills[-1]["id"]
+
+    response = client.get(f"/bills/{last_bill_id}/savings")
+    assert response.status_code == 200
+    suggestions = response.json()["suggestions"]
+    assert len(suggestions) >= 1
