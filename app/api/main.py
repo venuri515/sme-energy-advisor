@@ -4,7 +4,7 @@ from app.recommendations.rules import generate_suggestions
 from app.tariff_engine.carbon import calculate_carbon_kg
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
-
+from app.forecasting.baseline import forecast_next_month
 from app.api.schemas import BusinessCreate, BusinessOut, BillCreate, BillOut
 from app.models.database import get_db
 from app.models.models import Business, Bill
@@ -140,4 +140,33 @@ def get_bill_savings(bill_id: int, db: Session = Depends(get_db)):
             {"title": s.title, "detail": s.detail, "priority": s.priority}
             for s in suggestions
         ],
+    }
+
+@app.get("/businesses/{business_id}/forecast")
+def get_forecast(business_id: int, db: Session = Depends(get_db)):
+    business = db.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    bills = (
+        db.query(Bill)
+        .filter(Bill.business_id == business_id)
+        .order_by(Bill.bill_date)
+        .all()
+    )
+
+    if len(bills) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Need at least 2 bills to forecast. Add more bills first.",
+        )
+
+    recent_kwh = [b.kwh for b in bills]
+    result = forecast_next_month(recent_kwh)
+
+    return {
+        "business_id": business_id,
+        "predicted_kwh": result.predicted_kwh,
+        "method": result.method,
+        "based_on_months": result.based_on_months,
     }

@@ -102,3 +102,21 @@ def test_get_bill_savings(client):
     assert response.status_code == 200
     suggestions = response.json()["suggestions"]
     assert len(suggestions) >= 1
+
+def test_get_forecast(client):
+    business = client.post("/businesses", json={"name": "Growing Shop", "category": "general_purpose"}).json()
+    for kwh in [100, 150, 200]:
+        client.post("/bills", json={"business_id": business["id"], "bill_date": "2026-06-01", "kwh": kwh})
+
+    response = client.get(f"/businesses/{business['id']}/forecast")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["predicted_kwh"] == pytest.approx(250, abs=1)
+
+
+def test_get_forecast_needs_two_bills(client):
+    business = client.post("/businesses", json={"name": "New Shop", "category": "general_purpose"}).json()
+    client.post("/bills", json={"business_id": business["id"], "bill_date": "2026-06-01", "kwh": 100})
+
+    response = client.get(f"/businesses/{business['id']}/forecast")
+    assert response.status_code == 400
