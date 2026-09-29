@@ -79,3 +79,13 @@ def test_list_bills_filtered_by_business(client):
     response = client.get(f"/bills?business_id={b1['id']}")
     assert len(response.json()) == 1
     assert response.json()[0]["business_id"] == b1["id"]
+
+def test_get_bill_carbon(client):
+    business = client.post("/businesses", json={"name": "Solar Bakery", "category": "general_purpose"}).json()
+    bill = client.post("/bills", json={"business_id": business["id"], "bill_date": "2026-06-01", "kwh": 200}).json()
+
+    response = client.get(f"/bills/{bill['id']}/carbon")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["kwh"] == 200
+    assert data["carbon_kg"] == pytest.approx(200 * 0.4173, rel=1e-3)

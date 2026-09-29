@@ -1,0 +1,11 @@
+# Sri Lanka national grid average CO2 emission factor
+# Source: Sri Lanka Sustainable Energy Authority (SEA), "Sri Lanka Energy Balance 2022"
+# https://www.energy.gov.lk/images/energy-balance/energy-balance-2022.pdf
+# Retrieved: 2026-09-29
+# NOTE: the source PDF states two slightly different 2022 figures (0.4173 and 0.4062
+# kg CO2/kWh) in different tables. Using 0.4173 pending manual verification against
+# the PDF's final authoritative table.
+
+year: 2022
+value_kg_co2_per_kwh: 0.4173
+methodology: "average_emission_factor"   # NOT the "Combined Margin" (0.6482), which is for CDM projects

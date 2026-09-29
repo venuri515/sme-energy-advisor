@@ -1,6 +1,6 @@
 """FastAPI application: endpoints for businesses and bills."""
 from datetime import date
-
+from app.tariff_engine.carbon import calculate_carbon_kg
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
@@ -94,3 +94,15 @@ def recalculate_bill(bill_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(bill)
     return bill
+
+@app.get("/bills/{bill_id}/carbon")
+def get_bill_carbon(bill_id: int, db: Session = Depends(get_db)):
+    bill = db.get(Bill, bill_id)
+    if bill is None:
+        raise HTTPException(status_code=404, detail="Bill not found")
+
+    return {
+        "bill_id": bill.id,
+        "kwh": bill.kwh,
+        "carbon_kg": calculate_carbon_kg(bill.kwh),
+    }
