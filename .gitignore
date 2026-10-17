@@ -8,3 +8,5 @@ __pycache__/
 data/samples/*
 data/external/*
 data/synthetic/*
+
+.venv-agent/
