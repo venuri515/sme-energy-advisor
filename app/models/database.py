@@ -8,6 +8,7 @@ DATABASE_URL = os.environ.get(
     "postgresql+psycopg2://sme:change_me@localhost:5432/sme_energy",
 )
 
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
