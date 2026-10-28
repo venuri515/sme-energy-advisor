@@ -10,3 +10,7 @@ data/external/*
 data/synthetic/*
 
 .venv-agent/
+
+tariff_lambda.zip
+out.jsontariff_lambda.zip
+out.json
