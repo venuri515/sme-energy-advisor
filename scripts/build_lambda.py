@@ -13,6 +13,7 @@ OUT = ROOT / "tariff_lambda.zip"
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
     z.write(ROOT / "lambda_tariff" / "handler.py", "handler.py")
     z.write(ROOT / "app" / "tariff_engine" / "calculator.py", "calculator.py")
+    z.write(ROOT / "app" / "forecasting" / "baseline.py", "baseline.py")
     for path in sorted((ROOT / "config" / "tariffs").glob("lk_*.yaml")):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         z.writestr(f"tariffs/{path.stem}.json", json.dumps(data))
