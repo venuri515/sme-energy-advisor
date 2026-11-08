@@ -18,7 +18,8 @@ from pathlib import Path
 
 _START = time.time()
 _calls = 0
-_table = None
+# Built during the init phase (extra CPU) instead of during the first request
+_table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]) if os.environ.get("TABLE_NAME") else None
 
 # Runs once per cold start. Warm invocations reuse these.
 TARIFFS = sorted(
