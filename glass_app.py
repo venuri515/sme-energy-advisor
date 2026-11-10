@@ -6,6 +6,7 @@ Keep this file in the project root (next to the app/ and agent/ folders) and run
 "Check a bill" calls the tariff engine directly, so it needs no API or database.
 "Ask the advisor" needs the agent environment (.venv-agent) and AWS credentials.
 """
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import streamlit as st
 
+from cloud_client import call_lambda
 from app.forecasting.baseline import forecast_next_month
 from app.recommendations.rules import generate_suggestions
 from app.tariff_engine.calculator import calculate_bill
@@ -68,7 +70,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 st.title("Is your electricity bill right?")
 st.caption("Check a Sri Lankan business bill against the official tariff, see its carbon cost, and find ways to save.")
 
-tab_check, tab_ask = st.tabs(["Check a bill", "Ask the advisor"])
+tab_check, tab_ask, tab_cloud = st.tabs(["Check a bill", "Ask the advisor", "Cloud data"])
 
 with tab_check:
     left, right = st.columns([1, 1.3], gap="large")
@@ -157,3 +159,52 @@ with tab_ask:
                 reply = f"The advisor could not answer: {e}. Run this from .venv-agent and check your AWS sign-in."
             st.markdown(reply)
         st.session_state.chat.append(("assistant", reply))
+
+with tab_cloud:
+    BUSINESSES = {
+        "sunrise-bakery": "Sunrise Bakery", "colombo-print-shop": "Colombo Print Shop",
+        "galle-fashion-store": "Galle Fashion Store", "kandy-textiles": "Kandy Textile Works",
+        "galle-auto-repair": "Galle Auto Repair", "lakeview-guesthouse": "Lakeview Guesthouse",
+    }
+    st.caption("Bills stored in DynamoDB (Sydney) and read through a signed AWS Lambda Function URL. "
+               "The demo businesses use synthetic data.")
+    col_url, col_biz = st.columns([1.4, 1], gap="large")
+    cloud_url = col_url.text_input("Function URL", value=os.environ.get("SME_LAMBDA_URL", ""),
+                                   placeholder="https://xxxxxxxx.lambda-url.ap-southeast-2.on.aws/")
+    slug = col_biz.selectbox("Business", list(BUSINESSES), format_func=BUSINESSES.get)
+
+    if st.button("Load from AWS"):
+        if not cloud_url.strip():
+            st.warning("Paste your Function URL, or set SME_LAMBDA_URL before starting the app.")
+        else:
+            try:
+                with st.spinner("Calling AWS Lambda..."):
+                    st.session_state["cloud"] = call_lambda(cloud_url.strip(), {"business": slug}) + (slug,)
+            except Exception as exc:  # show the real reason instead of a blank screen
+                st.session_state["cloud"] = None
+                st.error(f"Could not reach AWS: {exc}")
+
+    cloud = st.session_state.get("cloud")
+    if cloud:
+        status, data, ms, shown = cloud
+        if status != 200:
+            st.error(f"AWS answered {status}: {data.get('Message') or data.get('error') or data}")
+        else:
+            bills = data["bills"]
+            with st.container(border=True):
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Answered in", f"{ms:,.0f} ms")
+                m2.metric("Forecast next month", f"{data.get('forecast_next_month_kwh', 0):,.0f} kWh")
+                m3.metric("Possible overcharges", len(data["possible_overcharges"]))
+                st.dataframe(
+                    [{"Month": b["month"], "kWh": b["kwh"], "Our calc (LKR)": b["our_calc_lkr"],
+                      "Charged (LKR)": b["charged_lkr"], "Difference (LKR)": b["difference_lkr"]} for b in bills],
+                    width="stretch", hide_index=True,
+                )
+                st.line_chart({"kWh": [b["kwh"] for b in bills]})
+            for b in bills:
+                if (b["difference_lkr"] or 0) > 1:
+                    st.markdown(f'<div class="tip"><b>{b["month"]}: charged LKR {b["difference_lkr"]:,.0f} more than the tariff</b>'
+                                f'Our calculation was LKR {b["our_calc_lkr"]:,.0f}; the bill said LKR {b["charged_lkr"]:,.0f}.</div>',
+                                unsafe_allow_html=True)
+            st.caption(f"Data source: {bills[0].get('source', 'unknown')}")
