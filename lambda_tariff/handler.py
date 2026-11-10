@@ -36,8 +36,9 @@ def _tariff_for(day: date) -> dict:
 
 
 def _reply(status: int, body: dict) -> dict:
+    if status >= 400:  # one greppable line per failed request, counted by a CloudWatch metric filter
+        print(json.dumps({"event": "ERROR_RESPONSE", "status": status, "error": body.get("error")}))
     return {"statusCode": status, "headers": {"content-type": "application/json"}, "body": json.dumps(body)}
-
 
 def _get_table():
     global _table
