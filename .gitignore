@@ -14,3 +14,5 @@ data/synthetic/*
 tariff_lambda.zip
 out.jsontariff_lambda.zip
 out.json
+lambda_build/
+.aws-sam/

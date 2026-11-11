@@ -3,7 +3,7 @@
     python scripts/dynamo_demo.py recent sunrise-bakery   # newest bills for one business (one Query)
     python scripts/dynamo_demo.py import data/samples/my_bills.csv   # real bills later (business,category,month,kwh,charged_lkr)
     python scripts/dynamo_demo.py purge-synthetic      # delete every synthetic item (a Scan, on purpose)
-Uses the admin profile "default" unless DYNAMO_PROFILE says otherwise."""
+Uses the admin profile "default" unless DYNAMO_PROFILE says otherwise; DYNAMO_TABLE picks the table."""
 import csv
 import os
 import sys
@@ -19,7 +19,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from app.tariff_engine.calculator import calculate_bill
 from app.tariff_engine.loader import load_tariff_for_date
 
-TABLE = "sme-advisor"
+TABLE = os.environ.get("DYNAMO_TABLE", "sme-advisor")   # set DYNAMO_TABLE to target the stack's table
 REGION = "ap-southeast-2"
 MONTHS = ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
 
