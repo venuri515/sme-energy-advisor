@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: One-time bootstrap. Lets GitHub Actions deploy the SME Energy Advisor stack with no stored keys.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+  GitHubOwnerId:
+    Type: String
+    AllowedPattern: '^[0-9]+$'
+    Description: Numeric id of the GitHub user or organisation that owns the repository
+  RepoName:
+    Type: String
+  RepoId:
+    Type: String
+    AllowedPattern: '^[0-9]+$'
+    Description: Numeric id of the repository
+  Branch:
+    Type: String
+    Default: main
+  AppStackName:
+    Type: String
+    Default: sme-advisor-stack
+    Description: The only stack this role may create or change
+  ArtifactBucket:
+    Type: String
+    Description: Existing private bucket where SAM uploads the code (under sam-artifacts/)
+  AgentUserName:
+    Type: String
+    Default: sme-agent
+
+Resources:
+  GitHubOidcProvider:   # only one provider per URL is allowed in an account
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sme-github-deploy
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                # new immutable format: names plus numeric ids, one branch only
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}@${GitHubOwnerId}/${RepoName}@${RepoId}:ref:refs/heads/${Branch}"
+      Policies:
+        - PolicyName: deploy-sme-advisor-stack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ManageOnlyThisStack
+                Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppStackName}/*"
+              - Sid: SamTransform
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+              - Sid: CloudFormationReads
+                Effect: Allow
+                Action:
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
+                Resource: "*"
+              - Sid: UploadCodeOnly
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}/sam-artifacts/*"
+              - Sid: ReadBucketInfo
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucket}"
+              - Sid: LambdaForThisStack
+                Effect: Allow
+                Action: lambda:*
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppStackName}-*"
+              - Sid: DynamoDbForThisStack
+                Effect: Allow
+                Action: dynamodb:*
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*/index/*"
+              - Sid: RolesForThisStack
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
+              - Sid: OnlyTheBasicLoggingPolicy
+                Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
+                Condition:
+                  ArnEquals:
+                    iam:PolicyARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+              - Sid: PassRolesOnlyToLambda
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+              - Sid: InvokePolicyOnOneUser
+                Effect: Allow
+                Action:
+                  - iam:PutUserPolicy
+                  - iam:GetUserPolicy
+                  - iam:DeleteUserPolicy
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AgentUserName}"
+              - Sid: LogGroupsForThisStack
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:PutMetricFilter
+                  - logs:DeleteMetricFilter
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AppStackName}-*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AppStackName}-*:*"
+              - Sid: LogReads
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:DescribeMetricFilters
+                Resource: "*"
+              - Sid: AlarmsForThisStack
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppStackName}-*"
+              - Sid: AlarmReads
+                Effect: Allow
+                Action: cloudwatch:DescribeAlarms
+                Resource: "*"
+              - Sid: TopicsForThisStack
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                  - sns:ListSubscriptionsByTopic
+                  - sns:GetSubscriptionAttributes
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppStackName}-*"
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn

@@ -31,3 +31,66 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t sme-energy-advisor .
+
+  deploy:
+    # Only after tests pass, only for pushes to main (never for pull requests)
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # lets the job request a short-lived identity token from GitHub
+      contents: read
+    concurrency:
+      group: deploy-sme-advisor
+      cancel-in-progress: false
+    env:
+      ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      ARTIFACT_BUCKET: ${{ vars.ARTIFACT_BUCKET }}
+      ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check configuration
+        run: |
+          for name in ROLE_ARN ARTIFACT_BUCKET ALERT_EMAIL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository variable for $name is not set"
+              exit 1
+            fi
+          done
+          echo "::add-mask::$ROLE_ARN"
+          echo "::add-mask::$ARTIFACT_BUCKET"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install pyyaml aws-sam-cli
+
+      - name: Build the Lambda package folder
+        run: python scripts/build_lambda.py
+
+      - name: Get short-lived AWS credentials (no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ap-southeast-2
+          mask-aws-account-id: true
+
+      - name: Lint the template
+        run: sam validate --lint --template-file template.yaml --region ap-southeast-2
+
+      - name: Deploy
+        run: >
+          sam deploy
+          --template-file template.yaml
+          --stack-name sme-advisor-stack
+          --region ap-southeast-2
+          --capabilities CAPABILITY_IAM
+          --s3-bucket "$ARTIFACT_BUCKET"
+          --s3-prefix sam-artifacts
+          --parameter-overrides AlertEmail="$ALERT_EMAIL"
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset
