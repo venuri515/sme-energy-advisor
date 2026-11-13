@@ -13,6 +13,7 @@ OUT = ROOT / "tariff_lambda.zip"
 
 files = {
     "handler.py": (ROOT / "lambda_tariff" / "handler.py").read_text(encoding="utf-8"),
+    "ingest.py": (ROOT / "lambda_tariff" / "ingest.py").read_text(encoding="utf-8"),
     "calculator.py": (ROOT / "app" / "tariff_engine" / "calculator.py").read_text(encoding="utf-8"),
     "baseline.py": (ROOT / "app" / "forecasting" / "baseline.py").read_text(encoding="utf-8"),
 }

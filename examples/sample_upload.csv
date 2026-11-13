@@ -1,0 +1,7 @@
+business,category,month,kwh,charged_lkr,source
+Demo Cafe,general_purpose,2026-06,160,4820,synthetic
+Demo Cafe,general_purpose,2026-07,175,5225,synthetic
+Demo Cafe,general_purpose,2026-08,185,8260,synthetic
+Demo Cafe,general_purpose,2026-09,196,9100,synthetic
+Demo Cafe,bakery,2026-10,150,4550,synthetic
+Demo Cafe,general_purpose,2026-1,150,4550,synthetic
